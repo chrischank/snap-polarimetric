@@ -268,7 +268,7 @@ def test_safe_file_name(fixture_mainclass, safe_file):
     """
 
     expected_safe_file_name = (
-        "S1B_IW_GRDH_1SDV_" "20190220T050359_20190220T050424_015025_01C12F_4EA4.SAFE"
+        "S1B_IW_GRDH_1SDV_20190220T050359_20190220T050424_015025_01C12F_4EA4.SAFE"
     )
 
     assert (
