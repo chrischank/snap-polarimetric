@@ -2,26 +2,24 @@
 This module include multiple test cases to check the performance of the snap_polarimetry script.
 """
 import os
-import sys
-
-from unittest.mock import patch
 import shutil
+import sys
 from pathlib import Path, PosixPath
+from unittest.mock import patch
 from xml.etree import ElementTree as ET
 
 import attr
 import geojson
-import rasterio as rio
 import numpy as np
 import pytest
+import rasterio as rio
+
+from blockutils.common import ensure_data_directories_exist
+from blockutils.exceptions import UP42Error
 
 # pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
-from context import (
-    SNAPPolarimetry,
-    ensure_data_directories_exist,
-    read_write_bigtiff,
-)
+from context import SNAPPolarimetry
 
 TEST_POLARISATIONS = [
     (["VV"], ["VV"], True),
@@ -415,13 +413,8 @@ def test_assert_input_params():
     params = {"mask": ["sea"], "tcorrection": "false", "clip_to_aoi": "true"}
 
     # assert "polygon" not in dict_default
-    with pytest.raises(ValueError) as e:
+    with pytest.raises(UP42Error, match=r".*['WRONG_INPUT_ERROR'].*"):
         SNAPPolarimetry(params).assert_input_params()
-    assert (
-        str(e.value)
-        == "When clip_to_aoi set to True, you MUST define the same coordinates in bbox, contains"
-        " or intersect for both the S1 and SNAP blocks."
-    )
 
 
 def test_assert_input_params_full():
@@ -439,12 +432,8 @@ def test_assert_input_params_full():
     }
 
     # assert "polygon" not in dict_default
-    with pytest.raises(ValueError) as e:
+    with pytest.raises(UP42Error, match=r".*['WRONG_INPUT_ERROR'].*"):
         SNAPPolarimetry(params).assert_input_params()
-    assert (
-        str(e.value)
-        == "When clip_to_aoi is set to False, bbox, contains and intersects must be set to null."
-    )
 
 
 @patch("os.system", lambda x: 0)
@@ -491,9 +480,9 @@ def test_process_multiple_polarisations(fixture_mainclass, safe_file):
     """
     test_fc = safe_file.feature_collection
 
-    params = {"polarisations": ["VV", "VH"]}
+    fixture_mainclass.params.polarisations = ["VV", "VH"]
 
-    output_fc, out_dict = fixture_mainclass.process(test_fc, params)
+    output_fc = fixture_mainclass.process(test_fc)
 
     expected_bbox = [
         13.319549560546875,
@@ -504,7 +493,7 @@ def test_process_multiple_polarisations(fixture_mainclass, safe_file):
     assert len(output_fc.features) == 1
     assert output_fc.features[0]["bbox"] == expected_bbox
     assert output_fc.features[0]["properties"]["up42.data_path"] != ""
-    assert not Path(
+    assert Path(
         "/tmp/output/" + output_fc.features[0]["properties"]["up42.data_path"]
     ).is_file()
 
@@ -518,15 +507,15 @@ def test_process_multiple_images_polarisations(fixture_mainclass, safe_files):
     """
     test_fc = safe_files.feature_collection
 
-    params = {"polarisations": ["VV", "VH"]}
+    fixture_mainclass.params.polarisations = ["VV", "VH"]
 
-    output_fc, out_dict = fixture_mainclass.process(test_fc, params)
+    output_fc = fixture_mainclass.process(test_fc)
 
     expected_bbox = [138.196686, 34.809418, 141.303055, 36.713043]
     assert len(output_fc.features) == 2
     assert output_fc.features[0]["bbox"] == expected_bbox
     assert output_fc.features[0]["properties"]["up42.data_path"] != ""
-    assert not Path(
+    assert Path(
         "/tmp/output/" + output_fc.features[0]["properties"]["up42.data_path"]
     ).is_file()
 
@@ -584,6 +573,7 @@ def test_run_scene(safe_file):
     _ = safe_file
 
     os.environ["UP42_TASK_PARAMETERS"] = '{"mask": null, "tcorrection": false}'
+
     # params = load_params()
     SNAPPolarimetry.run()
 
@@ -602,14 +592,14 @@ def test_run_scene(safe_file):
         os.remove("/tmp/input/data.json")
 
 
-def test_read_write_bigtiff():
+def test_read_write_bigtiff(fixture_mainclass):
     pol = ["vv", "vh"]
     output_file_vv = Path("/tmp/input/vv.tif")
     output_file_vh = Path("/tmp/input/vh.tif")
     make_dummy_raster_file(output_file_vv)
     make_dummy_raster_file(output_file_vh)
 
-    read_write_bigtiff("/tmp/input/", pol)
+    fixture_mainclass.read_write_bigtiff("/tmp/input/", pol)
 
     r = rio.open("/tmp/input/stack.tif")
 

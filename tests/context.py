@@ -11,12 +11,3 @@ sys.path.insert(
 
 # pylint: disable=unused-import,wrong-import-position
 from snap_polarimetry import SNAPPolarimetry
-
-# pylint: disable=unused-import,wrong-import-position,line-too-long
-from helper import (
-    LOG_FORMAT,
-    get_logger,
-    load_params,
-    ensure_data_directories_exist,
-    read_write_bigtiff,
-)

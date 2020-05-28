@@ -9,3 +9,4 @@ shapely
 ciso8601
 black
 coverage-badge
+up42-blockutils

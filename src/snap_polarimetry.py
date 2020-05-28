@@ -2,33 +2,30 @@
 This module is the main script for applying pre-processing steps based on
 SNAP software on Sentinel 1 L1C GRD images.
 """
-import os
-import sys
-from typing import List
-from pathlib import Path
-import shutil
-from string import Template
 import copy
-
+import os
+import shutil
+import sys
 import xml.etree.ElementTree as Et
-from geojson import FeatureCollection, Feature
-from shapely.geometry import shape
+from pathlib import Path
+from string import Template
+from typing import List
+
 import rasterio
+from geojson import Feature, FeatureCollection
+from shapely.geometry import shape
 
-from helper import (
-    load_params,
-    load_metadata,
-    ensure_data_directories_exist,
-    save_metadata,
-    get_logger,
-    read_write_bigtiff,
-    set_data_path,
-)
-from stac import STACQuery
+from blockutils.blocks import ProcessingBlock
+from blockutils.datapath import set_data_path
+from blockutils.exceptions import SupportedErrors, UP42Error
+from blockutils.logging import get_logger
+from blockutils.stac import STACQuery
 
+# constants
 LOGGER = get_logger(__name__)
 PARAMS_FILE = os.environ.get("PARAMS_FILE")
 GPT_CMD = "{gpt_path} {graph_xml_path} -e {source_file}"
+TEMPLATE_XML = "template/snap_polarimetry_graph.xml"
 
 
 # pylint: disable=unnecessary-pass
@@ -41,12 +38,12 @@ class WrongPolarizationError(ValueError):
     pass
 
 
-class SNAPPolarimetry:
+class SNAPPolarimetry(ProcessingBlock):
     """
     Polarimetric data preparation using SNAP
     """
 
-    def __init__(self, params: STACQuery):
+    def __init__(self, params):
         # the SNAP xml graph template path
 
         params = STACQuery.from_dict(params, lambda x: True)
@@ -56,13 +53,10 @@ class SNAPPolarimetry:
         params.set_param_if_not_exists("clip_to_aoi", False)
         params.set_param_if_not_exists("mask", None)
         params.set_param_if_not_exists("tcorrection", True)
-        params.set_param_if_not_exists("polarisations", True)
-
+        params.set_param_if_not_exists("polarisations", ["VV"])
         self.params = params
 
-        self.path_to_template = Path(__file__).parent.joinpath(
-            "template/snap_polarimetry_graph.xml"
-        )
+        self.path_to_template = Path(__file__).parent.joinpath(TEMPLATE_XML)
 
         # the temporary output path for the generated SNAP graphs
         self.path_to_tmp_out = Path("/tmp")
@@ -163,7 +157,7 @@ class SNAPPolarimetry:
         """
 
         return Path(self.path_to_tmp_out).joinpath(
-            "%s_%s.xml" % (self.safe_file_name(feature), polarisation)
+            f"{self.safe_file_name(feature)}_{polarisation}.xml"
         )
 
     def create_substitutions_dict(
@@ -260,8 +254,10 @@ class SNAPPolarimetry:
     def assert_input_params(self):
         if not self.params.clip_to_aoi:
             if self.params.bbox or self.params.contains or self.params.intersects:
-                raise ValueError(
-                    "When clip_to_aoi is set to False, bbox, contains and intersects must be set to null."
+                raise UP42Error(
+                    SupportedErrors.WRONG_INPUT_ERROR,
+                    "When clip_to_aoi is set to False, bbox, contains "
+                    "and intersects must be set to null.",
                 )
         else:
             if (
@@ -269,9 +265,11 @@ class SNAPPolarimetry:
                 and self.params.contains is None
                 and self.params.intersects is None
             ):
-                raise ValueError(
-                    "When clip_to_aoi set to True, you MUST define the same coordinates in bbox, contains"
-                    " or intersect for both the S1 and SNAP blocks."
+                raise UP42Error(
+                    SupportedErrors.WRONG_INPUT_ERROR,
+                    "When clip_to_aoi set to True, you MUST define the same "
+                    "coordinates in bbox, contains or intersect for both "
+                    "the S1 and SNAP blocks.",
                 )
 
     def process_snap(self, feature: Feature, requested_pols) -> list:
@@ -293,9 +291,8 @@ class SNAPPolarimetry:
 
             # Construct output snap processing file path with SAFE id plus polarization
             # i.e. S1A_IW_GRDH_1SDV_20190928T051659_20190928T051724_029217_035192_D2A2_vv
-            out_file_pol = "/tmp/input/%s_%s" % (
-                input_file_path.stem,
-                polarisation.lower(),
+            out_file_pol = (
+                f"/tmp/input/{str(input_file_path.stem)}_{polarisation.lower()}"
             )
             self.generate_snap_graph(feature, polarisation, out_file_pol)
 
@@ -310,6 +307,9 @@ class SNAPPolarimetry:
             return_value = os.system(cmd)
 
             if return_value:
+                ## Note to future self:
+                ## return_value = 35072 means docker container ran out of memory!!
+                ## Increase it to be higher than 8gb + 2gb swap
                 LOGGER.error(
                     "SNAP did not finish successfully with error code %d", return_value
                 )
@@ -319,17 +319,17 @@ class SNAPPolarimetry:
 
         return out_files
 
-    def process(self, metadata: FeatureCollection, params: dict):
+    def process(self, input_fc: FeatureCollection):
         """
         Main wrapper method to facilitate snap processing per feature
         """
-        polarisations: List = params.get("polarisations", ["VV"]) or ["VV"]
+        polarisations: List = self.params.polarisations or ["VV"]
 
         self.assert_input_params()
 
         results: List[Feature] = []
         out_dict: dict = {}
-        for in_feature in metadata.get("features"):
+        for in_feature in input_fc.get("features"):
             coordinate = in_feature["bbox"]
             self.assert_dem(coordinate)
             try:
@@ -337,7 +337,7 @@ class SNAPPolarimetry:
                 LOGGER.info("SNAP processing is finished!")
                 out_feature = copy.deepcopy(in_feature)
                 processed_tif_uuid = out_feature.properties["up42.data_path"]
-                out_path = "/tmp/output/%s/" % (processed_tif_uuid)
+                out_path = f"/tmp/output/{processed_tif_uuid}/"
                 if not os.path.exists(out_path):
                     os.mkdir(out_path)
                 for out_polarisation in processed_graphs:
@@ -367,7 +367,14 @@ class SNAPPolarimetry:
                 )
                 continue
 
-        return FeatureCollection(results), out_dict
+        for out_id in out_dict:
+            my_out_path = out_dict[out_id]["out_path"]
+            out_id_z = out_dict[out_id]["z"]
+            if self.params.mask is not None:
+                self.post_process(my_out_path, out_id_z)
+            self.rename_final_stack(my_out_path, out_id_z)
+
+        return FeatureCollection(results)
 
     @staticmethod
     def post_process(output_filepath, list_pol):
@@ -376,17 +383,18 @@ class SNAPPolarimetry:
         can be recognized by qgis.
         """
         for pol in list_pol:
-            init_output = "%s%s.tif" % (output_filepath, pol)
-            src = rasterio.open(init_output)
-            p_r = src.profile
-            p_r.update(nodata=0)
-            update_name = "%s%s.tif" % (output_filepath, "updated_" + pol)
-            image_read = src.read()
-            with rasterio.open(update_name, "w", **p_r) as dst:
-                for b_i in range(src.count):
-                    dst.write(image_read[b_i, :, :], indexes=b_i + 1)
-            Path(output_filepath).joinpath("%s.tif" % pol).unlink()
-            Path(update_name).rename(Path("%s%s.tif" % (output_filepath, pol)))
+            init_output = f"{output_filepath}{pol}.tif"
+            with rasterio.open(init_output) as src:
+                p_r = src.profile
+                p_r.update(nodata=0)
+                update_name = f"{output_filepath}updated_{pol}.tif"
+                image_read = src.read()
+                with rasterio.open(update_name, "w", **p_r) as dst:
+                    for b_i in range(src.count):
+                        dst.write(image_read[b_i, :, :], indexes=b_i + 1)
+
+            Path(f"{output_filepath}/{pol}.tif").unlink()
+            Path(update_name).rename(Path(f"{output_filepath}{pol}.tif"))
 
     @staticmethod
     def revise_graph_xml(xml_file, key: str):
@@ -407,25 +415,57 @@ class SNAPPolarimetry:
         tree.write(xml_file)
 
     @staticmethod
-    def rename_final_stack(output_filepath, list_pol):
+    def read_write_bigtiff(out_path, pol):
+        """
+        This method is a proper way to read big GeoTIFF raster data.
+        """
+        with rasterio.Env():
+            with rasterio.open(f"{out_path}{pol[0]}.tif") as src0:
+                kwargs = src0.profile
+                kwargs.update(
+                    count=len(pol),
+                    bigtiff="YES",
+                    compress="lzw",  # Output will be larger than 4GB
+                )
+
+                with rasterio.open(f"{out_path}stack.tif", "w", **kwargs) as dst:
+                    for b_id, layer in enumerate(pol):
+                        src = rasterio.open(f"{out_path}{layer}.tif")
+                        windows = src.block_windows(1)
+                        for _, window in windows:
+                            src_data = src.read(1, window=window)
+                            dst.write(src_data, window=window, indexes=b_id + 1)
+                        dst.set_band_description(b_id + 1, layer)
+
+    def rename_final_stack(self, output_filepath, list_pol):
         """
         This method combines all the .tiff files with different polarization into one .tiff file.
         Then it renames and relocated the final output in the right directory.
         """
         LOGGER.info("Writing started.")
-        read_write_bigtiff(output_filepath, list_pol)
+        self.read_write_bigtiff(output_filepath, list_pol)
         LOGGER.info("Writing is finished.")
+
         for pol in list_pol:
-            Path(output_filepath).joinpath("%s.tif" % pol).unlink()
-        # Rename the final output to be consistent with the data id.
-        Path("%s%s.tif" % (output_filepath, "stack")).rename(
+            pol_tif = f"{pol}.tif"
+            Path(output_filepath).joinpath(pol_tif).unlink()
+
+        # rename the files
+        stack_tif = f"{output_filepath}stack.tif"
+        Path(stack_tif).rename(
             Path("%s%s.tif" % (output_filepath, Path("%s" % output_filepath).stem))
         )
+
+        my_file = f"{str(Path(output_filepath))}.tif"
+        if os.path.exists(my_file):
+            Path(my_file).unlink()
+
         # Move the renamed file to parent directory
         shutil.move(
             "%s%s.tif" % (output_filepath, Path("%s" % output_filepath).stem),
             "%s" % Path("%s" % output_filepath).parent,
         )
+
         # Remove the child directory
         try:
             shutil.rmtree(Path(output_filepath))
@@ -435,22 +475,9 @@ class SNAPPolarimetry:
             for file_path in files_to_delete:
                 file_path.unlink()
 
-    @staticmethod
-    def run():
+    @classmethod
+    def from_dict(cls, kwargs):
         """
-        This method is the main entry point for this processing block
+        Instantiate a class with a dictionary of parameters
         """
-        ensure_data_directories_exist()
-        params: dict = load_params()
-        input_metadata: FeatureCollection = load_metadata()
-        pol_processor = SNAPPolarimetry(params)
-        result, out_dict = pol_processor.process(input_metadata, params)
-        save_metadata(result)
-        for out_id in out_dict:
-            if params["mask"] is not None:
-                pol_processor.post_process(
-                    out_dict[out_id]["out_path"], out_dict[out_id]["z"]
-                )
-            pol_processor.rename_final_stack(
-                out_dict[out_id]["out_path"], out_dict[out_id]["z"]
-            )
+        return cls(kwargs)
