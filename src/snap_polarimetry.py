@@ -176,7 +176,7 @@ class SNAPPolarimetry(ProcessingBlock):
             poly = self.params.geometry()
             geom = shape(poly)
             dict_default["polygon"] = geom.wkt
-        except ValueError:
+        except UP42Error:
             LOGGER.info("no ROI set, SNAP will process the whole scene.")
 
         if self.params.mask == ["sea"]:
