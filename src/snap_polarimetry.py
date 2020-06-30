@@ -11,9 +11,11 @@ from pathlib import Path
 from string import Template
 from typing import List
 
+import numpy as np
 import rasterio
+from rasterio import warp
 from geojson import Feature, FeatureCollection
-from shapely.geometry import shape
+from shapely.geometry import shape, box, mapping
 
 from blockutils.blocks import ProcessingBlock
 from blockutils.datapath import set_data_path
@@ -36,6 +38,44 @@ class WrongPolarizationError(ValueError):
     """
 
     pass
+
+
+def is_empty(path_to_image: Path, nodataval=0) -> bool:
+    """
+    Tests if a created geotiff image only consists of nodata
+    Args:
+        path_to_image: Path object pointing to geotiff image
+        nodataval: no data value
+
+    Returns: True if image is empty, False otherwise
+    """
+    with rasterio.open(str(path_to_image)) as img_file:
+        data = img_file.read()
+        return not np.any(data - nodataval)
+
+
+def update_extents(feat_coll: FeatureCollection) -> FeatureCollection:
+    """
+    Updates all geometry extents to reflect actual images
+    Args:
+        feature_coll: geojson Feature Collection
+
+    Returns: A FeatureCollection where image extents reflect actual images
+    """
+    for feature in feat_coll.features:
+        with rasterio.open(
+            os.path.join("/tmp/output", feature.properties["up42.data_path"])
+        ) as img_file:
+            img_bounds = img_file.bounds
+        bounds_trans = warp.transform_bounds(
+            img_file.crs, {"init": "epsg:4326"}, *img_bounds
+        )
+
+        geom = box(*bounds_trans)
+        feature["geometry"] = mapping(geom)
+        feature["bbox"] = geom.bounds
+
+    return feat_coll
 
 
 class SNAPPolarimetry(ProcessingBlock):
@@ -315,7 +355,13 @@ class SNAPPolarimetry(ProcessingBlock):
                 )
                 sys.exit(return_value)
 
-            out_files.append(out_file_pol)
+            # There are cases where in the end the clipped output image is empty
+            if self.params.clip_to_aoi and is_empty(Path(out_file_pol + ".tif")):
+                LOGGER.info(
+                    f"Output file {out_file_pol} empty, removing it from list of returned images"
+                )
+            else:
+                out_files.append(out_file_pol)
 
         return out_files
 
@@ -374,7 +420,12 @@ class SNAPPolarimetry(ProcessingBlock):
                 self.post_process(my_out_path, out_id_z)
             self.rename_final_stack(my_out_path, out_id_z)
 
-        return FeatureCollection(results)
+        result_fc = FeatureCollection(results)
+
+        if self.params.clip_to_aoi:
+            result_fc = update_extents(result_fc)
+
+        return result_fc
 
     @staticmethod
     def post_process(output_filepath, list_pol):

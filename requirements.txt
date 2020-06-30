@@ -5,7 +5,7 @@ pytest-cov
 pytest-mypy
 rasterio
 black
-shapely
+shapely==1.6.4.post2 --no-binary==shapely
 ciso8601
 black
 coverage-badge

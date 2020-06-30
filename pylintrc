@@ -10,7 +10,9 @@ disable=
     too-many-boolean-expressions,
     bad-continuation,
     no-member,
-    fixme
+    fixme,
+    logging-fstring-interpolation,
+    logging-format-interpolation
 
 [FORMAT]
 max-line-length=120

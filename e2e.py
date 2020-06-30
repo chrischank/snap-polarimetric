@@ -5,6 +5,7 @@ is valid.
 from pathlib import Path
 import os
 
+import numpy as np
 import geojson
 
 if __name__ == "__main__":
@@ -25,8 +26,8 @@ if __name__ == "__main__":
 
     RUN_CMD = (
         """docker run -v %s:/tmp \
-                 -e 'UP42_TASK_PARAMETERS={"bbox": [14.558086395263674,
-                 53.4138293218823, 14.584178924560549, 53.433673900512616], "mask": null, "tcorrection": false,\
+                 -e 'UP42_TASK_PARAMETERS={"bbox": [14.558086,
+                 53.413829, 14.584178, 53.433673], "mask": null, "tcorrection": false,\
                     "polarisations": ["VV"], "clip_to_aoi": true}' \
                   -it snap-polarimetric"""
         % TEST_DIR
@@ -40,7 +41,16 @@ if __name__ == "__main__":
     with open(str(GEOJSON_PATH)) as f:
         FEATURE_COLLECTION = geojson.load(f)
 
-    print(FEATURE_COLLECTION.features[0].bbox)
+    result_bbox = FEATURE_COLLECTION.features[0].bbox
+    print(result_bbox)
+
+    # BBox might seem slightly off from the extent requested, but this is to be expected if no
+    # terrain correction is applied
+    assert np.allclose(
+        np.array([14.589980, 53.414966, 14.626898, 53.433054]),
+        np.array(result_bbox),
+        atol=1e-04,
+    )
 
     OUTPUT_SNAP = (
         TEST_DIR

@@ -4,22 +4,27 @@ This module include multiple test cases to check the performance of the snap_pol
 import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path, PosixPath
 from unittest.mock import patch
 from xml.etree import ElementTree as ET
 
 import attr
 import geojson
+from geojson import Polygon, Feature, FeatureCollection
 import numpy as np
 import pytest
 import rasterio as rio
+from shapely.geometry import shape
 
 from blockutils.common import ensure_data_directories_exist
 from blockutils.exceptions import UP42Error
+from blockutils.syntheticimage import SyntheticImage
+from blockutils.datapath import set_data_path
 
 # pylint: disable=wrong-import-position
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
-from context import SNAPPolarimetry
+from context import SNAPPolarimetry, is_empty, update_extents
 
 TEST_POLARISATIONS = [
     (["VV"], ["VV"], True),
@@ -434,6 +439,80 @@ def test_assert_input_params_full():
     # assert "polygon" not in dict_default
     with pytest.raises(UP42Error, match=r".*['WRONG_INPUT_ERROR'].*"):
         SNAPPolarimetry(params).assert_input_params()
+
+
+def test_is_empty():
+    tmp_dir = Path(tempfile.mkdtemp())
+
+    # Case for non-empty image
+    path_to_test_image, _ = SyntheticImage(
+        28, 28, 2, "uint16", out_dir=tmp_dir
+    ).create()
+    assert not is_empty(path_to_test_image)
+    # Case for empty image
+    path_to_test_image, _ = SyntheticImage(
+        28, 28, 2, "uint16", out_dir=tmp_dir, nodata_fill=28
+    ).create()
+    assert is_empty(path_to_test_image)
+
+    shutil.rmtree(tmp_dir)
+
+
+def test_update_extents():
+    ensure_data_directories_exist()
+    tmp_dir = Path("/tmp/output")
+
+    # Create two synthetic images
+    path_to_test_image_1, _ = SyntheticImage(
+        28, 20, 2, "uint16", out_dir=tmp_dir
+    ).create()
+    path_to_test_image_2, _ = SyntheticImage(
+        40, 28, 1, "uint16", out_dir=tmp_dir
+    ).create()
+
+    # Create FC out of synthetic images with (too) large image extents
+    poly_1 = Polygon(
+        [
+            [
+                (13.21, 52.62),
+                (13.22, 52.62),
+                (13.22, 52.63),
+                (13.21, 52.63),
+                (13.21, 52.62),
+            ]
+        ]
+    )
+    poly_2 = Polygon(
+        [
+            [
+                (14.21, 53.62),
+                (14.22, 53.62),
+                (14.22, 53.63),
+                (14.21, 53.63),
+                (14.21, 53.62),
+            ]
+        ]
+    )
+    feature_1 = Feature(bbox=shape(poly_1).bounds, geometry=poly_1)
+    feature_2 = Feature(bbox=shape(poly_2).bounds, geometry=poly_2)
+    set_data_path(feature_1, path_to_test_image_1.name)
+    set_data_path(feature_2, path_to_test_image_2.name)
+    fc = FeatureCollection([feature_1, feature_2])
+
+    expected_bbox = [13.21418, 52.62515, 13.21468, 52.625375]
+    updated_fc = update_extents(fc)
+    up_feature_1, up_feature_2 = updated_fc.features
+
+    assert np.allclose(
+        np.array(expected_bbox), np.array(up_feature_1["bbox"]), atol=1e-07
+    )
+    assert np.allclose(
+        np.array(expected_bbox),
+        np.array(shape(up_feature_2.geometry).bounds),
+        atol=1e-04,
+    )
+
+    shutil.rmtree(tmp_dir)
 
 
 @patch("os.system", lambda x: 0)

@@ -10,4 +10,4 @@ sys.path.insert(
 )
 
 # pylint: disable=unused-import,wrong-import-position
-from snap_polarimetry import SNAPPolarimetry
+from snap_polarimetry import SNAPPolarimetry, is_empty, update_extents
