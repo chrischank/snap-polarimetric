@@ -51,6 +51,7 @@ def is_empty(path_to_image: Path, nodataval=0) -> bool:
     """
     with rasterio.open(str(path_to_image)) as img_file:
         data = img_file.read()
+        np.nan_to_num(data, nan=nodataval, copy=False)
         return not np.any(data - nodataval)
 
 
@@ -485,6 +486,7 @@ class SNAPPolarimetry(ProcessingBlock):
                         windows = src.block_windows(1)
                         for _, window in windows:
                             src_data = src.read(1, window=window)
+                            np.nan_to_num(src_data, copy=False)
                             dst.write(src_data, window=window, indexes=b_id + 1)
                         dst.set_band_description(b_id + 1, layer)
 
