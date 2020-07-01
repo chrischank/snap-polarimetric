@@ -382,6 +382,9 @@ class SNAPPolarimetry(ProcessingBlock):
             try:
                 processed_graphs = self.process_snap(in_feature, polarisations)
                 LOGGER.info("SNAP processing is finished!")
+                if not processed_graphs:
+                    LOGGER.debug("No processed images returned, will continue")
+                    continue
                 out_feature = copy.deepcopy(in_feature)
                 processed_tif_uuid = out_feature.properties["up42.data_path"]
                 out_path = f"/tmp/output/{processed_tif_uuid}/"
@@ -413,6 +416,13 @@ class SNAPPolarimetry(ProcessingBlock):
                     self.safe_file_name(in_feature),
                 )
                 continue
+
+        if not results:
+            raise UP42Error(
+                SupportedErrors.NO_OUTPUT_ERROR,
+                "The used input parameters don't result in any output "
+                "when applied to the provided input images.",
+            )
 
         for out_id in out_dict:
             my_out_path = out_dict[out_id]["out_path"]
