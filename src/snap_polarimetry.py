@@ -146,7 +146,7 @@ class SNAPPolarimetry(ProcessingBlock):
 
         for key, _ in params.items():
             if not params[key]:
-                LOGGER.info("%s will be discarded.", key)
+                LOGGER.info(f"{key} will be discarded.")
                 self.revise_graph_xml(dst, key)
 
         file_pointer = open(dst)
@@ -305,7 +305,7 @@ class SNAPPolarimetry(ProcessingBlock):
                 source_file=input_file_path,
             )
 
-            LOGGER.info("Running SNAP command: %s", cmd)
+            LOGGER.info(f"Running SNAP command: {cmd}")
             # Need to use os.system; subprocess does not work
             return_value = os.system(cmd)
 
@@ -314,7 +314,7 @@ class SNAPPolarimetry(ProcessingBlock):
                 ## return_value = 35072 means docker container ran out of memory!!
                 ## Increase it to be higher than 8gb + 2gb swap
                 LOGGER.error(
-                    "SNAP did not finish successfully with error code %d", return_value
+                    f"SNAP did not finish successfully with error code {return_value}"
                 )
                 sys.exit(return_value)
 
@@ -371,11 +371,9 @@ class SNAPPolarimetry(ProcessingBlock):
                 ).unlink()
             except WrongPolarizationError:
                 LOGGER.error(
-                    "%s: some or all of the polarisations (%r) don't exist "
-                    "in this product (%s), skipping.",
-                    "WrongPolarizationError",
-                    polarisations,
-                    self.safe_file_name(in_feature),
+                    f"WrongPolarizationError: some or all of the polarisations "
+                    f"({polarisations}) don't exist in this product "
+                    f"({self.safe_file_name(in_feature),}), skipping.",
                 )
                 continue
 

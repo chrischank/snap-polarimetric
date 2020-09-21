@@ -7,6 +7,10 @@ import os
 
 import numpy as np
 import geojson
+from blockutils.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 if __name__ == "__main__":
     TESTNAME = "e2e_snap-polarimetric"
@@ -42,7 +46,7 @@ if __name__ == "__main__":
         FEATURE_COLLECTION = geojson.load(f)
 
     result_bbox = FEATURE_COLLECTION.features[0].bbox
-    print(result_bbox)
+    logger.info(result_bbox)
 
     # BBox might seem slightly off from the extent requested, but this is to be expected if no
     # terrain correction is applied
@@ -58,6 +62,6 @@ if __name__ == "__main__":
         / Path(FEATURE_COLLECTION.features[0].properties["up42.data_path"])
     )
 
-    print(OUTPUT_SNAP)
+    logger.info(OUTPUT_SNAP)
 
     assert OUTPUT_SNAP.exists()
