@@ -7,8 +7,8 @@
     "polarimetric",
     "preprocessing"
   ],
-  "display_name": "SNAP Sentinel-1 Polarimetric Processing",
-  "description": "This block provides a common polarimetric processing workflow with SNAP that operates ESA SAFE format scenes.",
+  "display_name": "SNAP Polarimetric Processing Sentinel-1",
+  "description": "Runs a common polarimetric processing workflow with SNAP that operates ESA SAFE format scenes.",
   "parameters": {
     "bbox": {"type": "array", "default": null},
     "intersects": {"type": "geometry", "default":  null},
