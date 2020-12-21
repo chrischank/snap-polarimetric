@@ -3,49 +3,22 @@ End-to-end test: Fetches data, creates output, stores it in /tmp and checks if o
 is valid.
 """
 from pathlib import Path
-import os
 
 import numpy as np
 import geojson
-from blockutils.logging import get_logger
 
-logger = get_logger(__name__)
+from blockutils.e2e import E2ETest
 
-
-if __name__ == "__main__":
-    TESTNAME = "e2e_snap-polarimetric"
-    TEST_DIR = Path("/tmp") / TESTNAME
-    TEST_DIR.mkdir(parents=True, exist_ok=True)
-    INPUT_DIR = TEST_DIR / "input"
-    INPUT_DIR.mkdir(parents=True, exist_ok=True)
-    FILES_TO_DELETE = Path(TEST_DIR / "output").glob("*")
-    for file_path in FILES_TO_DELETE:
-        file_path.unlink()
-
-    # Download file from gsutil
-    os.system(
-        "gsutil -m cp -r gs://floss-blocks-e2e-testing/e2e_snap_polarimetric/* %s"
-        % INPUT_DIR
-    )
-
-    RUN_CMD = (
-        """docker run -v %s:/tmp \
-                 -e 'UP42_TASK_PARAMETERS={"bbox": [14.558086,
-                 53.413829, 14.584178, 53.433673], "mask": null, "tcorrection": false,\
-                    "polarisations": ["VV"], "clip_to_aoi": true}' \
-                  -it snap-polarimetric"""
-        % TEST_DIR
-    )
-
-    os.system(RUN_CMD)
-
+# Disable unused params for assert
+# pylint: disable=unused-argument
+def asserts(input_dir: Path, output_dir: Path, quicklook_dir: Path, logger):
     # Print out bbox of one tile
-    GEOJSON_PATH = TEST_DIR / "output" / "data.json"
+    geojson_path = output_dir / "data.json"
 
-    with open(str(GEOJSON_PATH)) as f:
-        FEATURE_COLLECTION = geojson.load(f)
+    with open(str(geojson_path)) as f:
+        feature_collection = geojson.load(f)
 
-    result_bbox = FEATURE_COLLECTION.features[0].bbox
+    result_bbox = feature_collection.features[0].bbox
     logger.info(result_bbox)
 
     # BBox might seem slightly off from the extent requested, but this is to be expected if no
@@ -56,12 +29,26 @@ if __name__ == "__main__":
         atol=1e-04,
     )
 
-    OUTPUT_SNAP = (
-        TEST_DIR
-        / "output"
-        / Path(FEATURE_COLLECTION.features[0].properties["up42.data_path"])
+    output_snap = (
+        output_dir / feature_collection.features[0].properties["up42.data_path"]
     )
 
-    logger.info(OUTPUT_SNAP)
+    logger.info(output_snap)
 
-    assert OUTPUT_SNAP.exists()
+    assert output_snap.exists()
+
+
+if __name__ == "__main__":
+    e2e = E2ETest("snap-polarimetric")
+    e2e.add_parameters(
+        {
+            "bbox": [14.558086, 53.413829, 14.584178, 53.433673],
+            "mask": None,
+            "tcorrection": False,
+            "polarisations": ["VV"],
+            "clip_to_aoi": True,
+        }
+    )
+    e2e.add_gs_bucket("gs://floss-blocks-e2e-testing/e2e_snap_polarimetric/*")
+    e2e.asserts = asserts
+    e2e.run()
