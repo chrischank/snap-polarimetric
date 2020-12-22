@@ -40,15 +40,18 @@ def asserts(input_dir: Path, output_dir: Path, quicklook_dir: Path, logger):
 
 if __name__ == "__main__":
     e2e = E2ETest("snap-polarimetric")
-    e2e.add_parameters(
-        {
-            "bbox": [14.558086, 53.413829, 14.584178, 53.433673],
-            "mask": None,
-            "tcorrection": False,
-            "polarisations": ["VV"],
-            "clip_to_aoi": True,
-        }
-    )
-    e2e.add_gs_bucket("gs://floss-blocks-e2e-testing/e2e_snap_polarimetric/*")
-    e2e.asserts = asserts
-    e2e.run()
+    if not e2e.in_ci:
+        e2e.add_parameters(
+            {
+                "bbox": [14.558086, 53.413829, 14.584178, 53.433673],
+                "mask": None,
+                "tcorrection": False,
+                "polarisations": ["VV"],
+                "clip_to_aoi": True,
+            }
+        )
+        e2e.add_gs_bucket("gs://floss-blocks-e2e-testing/e2e_snap_polarimetric/*")
+        e2e.asserts = asserts
+        e2e.run()
+    else:
+        print("Skipping test...")
