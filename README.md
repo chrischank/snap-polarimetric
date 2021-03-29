@@ -52,7 +52,7 @@ First create a new virtual environment called `up42-snap`, for example by using
 [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/):
 
 ```bash
-mkvirtualenv --python=$(which python3.8) up42-snap
+mkvirtualenv --python=$(which python3.7) up42-snap
 ```
 
 Activate the new environment:
