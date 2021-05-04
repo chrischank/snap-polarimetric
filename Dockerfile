@@ -1,4 +1,4 @@
-FROM up42/up42-snap-py38:latest
+FROM up42/up42-snap-py38
 
 ARG .
 ARG manifest
