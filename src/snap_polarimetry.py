@@ -144,8 +144,8 @@ class SNAPPolarimetry(ProcessingBlock):
             "LinearToFromdB": self.params.linear_to_db,
         }
 
-        for key, _ in params.items():
-            if not params[key]:
+        for key, val in params.items():
+            if not val:
                 LOGGER.info(f"{key} will be discarded.")
                 self.revise_graph_xml(dst, key)
 
@@ -384,7 +384,7 @@ class SNAPPolarimetry(ProcessingBlock):
                 "when applied to the provided input images.",
             )
 
-        for out_id in out_dict:
+        for out_id in out_dict:  # pylint: disable=consider-using-dict-items
             my_out_path = out_dict[out_id]["out_path"]
             out_id_z = out_dict[out_id]["z"]
             if self.params.mask is not None:
