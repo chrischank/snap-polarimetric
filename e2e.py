@@ -15,7 +15,7 @@ def asserts(input_dir: Path, output_dir: Path, quicklook_dir: Path, logger):
     # Print out bbox of one tile
     geojson_path = output_dir / "data.json"
 
-    with open(str(geojson_path)) as f:
+    with open(str(geojson_path), encoding="utf-8") as f:
         feature_collection = geojson.load(f)
 
     result_bbox = feature_collection.features[0].bbox
