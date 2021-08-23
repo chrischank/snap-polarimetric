@@ -121,6 +121,7 @@ class SNAPPolarimetry(ProcessingBlock):
 
         return self.safe_file_path(feature).joinpath("manifest.safe")
 
+    # pylint: disable=consider-using-with
     def process_template(self, substitutes: dict) -> str:
         """
         Processes the snap default template and substitutes
@@ -149,7 +150,7 @@ class SNAPPolarimetry(ProcessingBlock):
                 LOGGER.info(f"{key} will be discarded.")
                 self.revise_graph_xml(dst, key)
 
-        file_pointer = open(dst)
+        file_pointer = open(dst, encoding="utf-8")
         template = Template(file_pointer.read())
 
         return template.substitute(substitutes)
