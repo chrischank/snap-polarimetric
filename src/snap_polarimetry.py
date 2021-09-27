@@ -131,10 +131,10 @@ class SNAPPolarimetry(ProcessingBlock):
         path_to_temp = Path(__file__).parent.joinpath("template/")
 
         shutil.copy(
-            src, Path(path_to_temp).joinpath("snap_polarimetry_graph_%s.xml" % "copy")
+            src, Path(path_to_temp).joinpath(f"snap_polarimetry_graph_{'copy'}.xml")
         )
         dst = Path(__file__).parent.joinpath(
-            "template/snap_polarimetry_graph_%s.xml" % "copy"
+            f"template/snap_polarimetry_graph_{'copy'}.xml"
         )
 
         params: dict = {
@@ -214,7 +214,9 @@ class SNAPPolarimetry(ProcessingBlock):
             feature, polarisation, out_file_pol
         )
         result = self.process_template(dict_default)
-        self.target_snap_graph_path(feature, polarisation).write_text(result)
+        self.target_snap_graph_path(feature, polarisation).write_text(
+            result, encoding="utf-8"
+        )
 
     @staticmethod
     def replace_dem():
@@ -356,8 +358,8 @@ class SNAPPolarimetry(ProcessingBlock):
                 for out_polarisation in processed_graphs:
                     # Besides the path we only need to change the capabilities
                     shutil.move(
-                        ("%s.tif" % out_polarisation),
-                        ("%s%s.tif" % (out_path, out_polarisation.split("_")[-1])),
+                        (f"{out_polarisation}.tif"),
+                        (f"{out_path}{out_polarisation.split('_')[-1]}.tif"),
                     )
                 del out_feature["properties"]["up42.data_path"]
                 set_data_path(out_feature, processed_tif_uuid + ".tif")
@@ -368,7 +370,7 @@ class SNAPPolarimetry(ProcessingBlock):
                     "out_path": out_path,
                 }
                 Path(__file__).parent.joinpath(
-                    "template/" "snap_polarimetry_graph_%s.xml" % "copy"
+                    "template/" f"snap_polarimetry_graph_{'copy'}.xml"
                 ).unlink()
             except WrongPolarizationError:
                 LOGGER.error(
@@ -477,7 +479,7 @@ class SNAPPolarimetry(ProcessingBlock):
         # rename the files
         stack_tif = f"{output_filepath}stack.tif"
         Path(stack_tif).rename(
-            Path("%s%s.tif" % (output_filepath, Path("%s" % output_filepath).stem))
+            Path(f"{output_filepath}{Path(f'{output_filepath}').stem}.tif")
         )
 
         my_file = f"{str(Path(output_filepath))}.tif"
@@ -486,8 +488,8 @@ class SNAPPolarimetry(ProcessingBlock):
 
         # Move the renamed file to parent directory
         shutil.move(
-            "%s%s.tif" % (output_filepath, Path("%s" % output_filepath).stem),
-            "%s" % Path("%s" % output_filepath).parent,
+            f"{output_filepath}{Path(output_filepath).stem}.tif",
+            f"{Path(output_filepath).parent}",
         )
 
         # Remove the child directory
