@@ -144,14 +144,10 @@ def safe_file():
         test_feature,
     )
 
-    output_file_vv_before_move = Path(
-        "/tmp/input/%s_%s.tif" % (safe_file_path.stem, "vv")
-    )
+    output_file_vv_before_move = Path(f"/tmp/input/{safe_file_path.stem}_{'vv'}.tif")
     make_dummy_raster_file(output_file_vv_before_move)
 
-    output_file_vh_before_move = Path(
-        "/tmp/input/%s_%s.tif" % (safe_file_path.stem, "vh")
-    )
+    output_file_vh_before_move = Path(f"/tmp/input/{safe_file_path.stem}_{'vh'}.tif")
     make_dummy_raster_file(output_file_vh_before_move)
 
     out_path = Path("/tmp/output/0a99c5a1-75c0-4a0d-a7dc-c2a551936be4")
@@ -204,10 +200,10 @@ def safe_files():
         measurement_file_path.mkdir()
 
         vh_file = measurement_file_path / Path(
-            "s1b-iw-grd-vh-" "%s-002.tiff" % s1_id.lower().replace("_", "-")[17:]
+            "s1b-iw-grd-vh-" f"{s1_id.lower().replace('_', '-')[17:]}-002.tiff"
         )
         vv_file = measurement_file_path / Path(
-            "s1b-iw-grd-vv-" "%s-001.tiff" % s1_id.lower().replace("_", "-")[17:]
+            "s1b-iw-grd-vv-" f"{s1_id.lower().replace('_', '-')[17:]}-001.tiff"
         )
 
         make_dummy_raster_file(vh_file)
@@ -225,16 +221,16 @@ def safe_files():
         )
 
         output_file_vv_before_move = Path(
-            "/tmp/input/%s_%s.tif" % (safe_file_path.stem, "vv")
+            f"/tmp/input/{safe_file_path.stem}_{'vv'}.tif"
         )
         make_dummy_raster_file(output_file_vv_before_move)
 
         output_file_vh_before_move = Path(
-            "/tmp/input/%s_%s.tif" % (safe_file_path.stem, "vh")
+            f"/tmp/input/{safe_file_path.stem}_{'vh'}.tif"
         )
         make_dummy_raster_file(output_file_vh_before_move)
 
-        out_path = Path("/tmp/output/%s" % uid)
+        out_path = Path(f"/tmp/output/{uid}")
         if out_path.exists():
             shutil.rmtree(str(out_path))
         out_path.mkdir()
