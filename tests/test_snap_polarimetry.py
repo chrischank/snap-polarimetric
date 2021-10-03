@@ -116,7 +116,7 @@ def safe_file():
     test_feature = test_featurecollection.features[0]
 
     manifest_path = safe_file_path / "manifest.safe"
-    manifest_path.write_text("")
+    manifest_path.write_text("", encoding="utf-8")
 
     measurement_file_path = safe_file_path / "measurement"
     measurement_file_path.mkdir()
